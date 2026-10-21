@@ -12,8 +12,8 @@ and the project follows [Semantic Versioning](https://semver.org/).
   the Pulsar provider reads. The protocol comes from ATK's own web driver (ATK HUB,
   hub.atkgear.com), whose device table binds the receiver's 0xffb3 collection to this
   product id and queries the battery there with a 63-byte frame (command 0x1a, report
-  id 5). The same mouse on its cable (373b:1083) is claimed from the driver's table,
-  unverified on a cable yet.
+  id 5). The same mouse on its cable (373b:108b) is read on its 0xffb2 collection with
+  the driver's default report id 4; both are confirmed on hardware.
 
 ### Changed
 - **A tidier repository and a shorter README**: the app's modules moved into the `halo/`

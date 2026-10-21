@@ -10,9 +10,12 @@ silent, which is what the real receiver does.
 The first reply in most tests is the reporter's own hardware answering the
 power query: 91% on battery, the frame this provider was written against.
 
-The same mouse on its cable (373b:1083) is claimed from the driver's table with
-report id 4 on the 0xffb0 collection; it has not been tried on a cable yet, so
-the fake follows the table like the provider does.
+The same mouse on its cable enumerates as 373b:108b ("ATK X1 Nearlink 8k"),
+with only two vendor collections (0xffb1 with a 13-byte output report and
+0xffb2 with a 64-byte one). ATK HUB's device table lists that id with
+connectType wired8K, and its controller keeps its constructor default report
+id 4 for it; confirmed on hardware, the 0xffb2 collection answers report id 4
+there, charging flag set while the cable supplies power.
 
 hidlist.enumerate() and hid.device() are replaced: the real ones ask Windows for
 collections of real devices.
@@ -240,15 +243,17 @@ class AtkNearlinkTest(unittest.TestCase):
                 self.assertEqual(A.make_request(1, report_id), c.sent[0])
                 self.assertEqual(report_id, c.sent[0][0])
 
-    def test_the_wired_id_is_read_on_the_ffb0_collection_with_report_4(self):
-        # claimed from ATK HUB's device table; not yet tried on a cable
-        bus = self.one_receiver(pid=0x1083, replies=[reply(54, 1, report_id=0x04)],
-                                answering=(0xFFB0, 0x0001))
+    def test_the_wired_id_is_read_on_the_ffb2_collection_with_report_4(self):
+        # the wired mouse's only frame-capable vendor collection, answering the
+        # driver's default report id 4 - the frame captured on a real cable:
+        # requestCode 1, commandId 0x1a, battery 0x61 (97%), charging flag 1
+        bus = self.one_receiver(pid=0x108B, replies=[reply(97, 1, report_id=0x04)],
+                                answering=(0xFFB2, 0x0001))
         found = A.AtkNearlinkProvider().poll()
         self.assertEqual(1, len(found))
-        self.assertEqual(("atk_nearlink:1083", "ATK X1 Ultimate (wired)", 54, True),
+        self.assertEqual(("atk_nearlink:108b", "ATK X1 Ultimate (wired)", 97, True),
                          (found[0].key, found[0].name, found[0].level, found[0].charging))
-        self.assertEqual([(0xFFB0, 0x0001)], bus.written())
+        self.assertEqual([(0xFFB2, 0x0001)], bus.written())
 
     def test_the_control_collection_is_used_when_its_output_report_fits(self):
         self.one_receiver(replies=[reply(64)], lengths={(0xFFB3, 0x0001): 64})

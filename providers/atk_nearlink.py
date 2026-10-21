@@ -2,7 +2,7 @@
 
 The 8K Nearlink receiver (product string "ATK 8k Dongle Nearlink Version",
 373b:108c) ships with the ATK X1 Ultimate and the other X1 Nearlink mice; the
-same mouse on its cable enumerates as 373b:1083 ("ATK X1 Nearlink 8k"). Neither
+same mouse on its cable enumerates as 373b:108b ("ATK X1 Nearlink 8k"). Neither
 is read by ATK's own older Compx panel, and neither answers the 17-byte
 command-0x04 frame of providers/pulsar.py: the Nearlink receiver is new
 silicon with its own layout.
@@ -10,9 +10,8 @@ silicon with its own layout.
 The protocol was taken from ATK's own current web driver (ATK HUB,
 hub.atkgear.com, build 3.2.28), where the "Evision" mouse controller reads the
 battery of exactly these two product ids. Its mouse-protocol frame is a
-63-byte payload sent as output report 5 (64 bytes on the wire, report id
-first) on the vendor collection with usage page 0xffb3 on interface 1 - the
-same collection the driver's device table binds to 373b:108c:
+63-byte payload sent as an output report (64 bytes on the wire, report id
+first) on a vendor collection of interface 1:
 
     [0..1]  requestCode  little-endian, increments with every query, from 1
     [2]     commandId    0x1a = power info
@@ -32,9 +31,17 @@ away. As in providers/pulsar.py, the last reading is then kept greyed out for
 as long as the receiver stays in the USB tree, and only a receiver that leaves
 the tree drops the device.
 
-The wired id (373b:1083) is claimed from the same table with report id 4 on
-the 0xffb0 collection; it is unverified - nobody has read it on a cable yet -
-and is marked so in the device table.
+Which collection and report id depends on the product id, and the driver is
+explicit about it: its controller sets report id 5 for the wireless connect
+types and keeps its constructor default of 4 otherwise. On the receiver
+(373b:108c) that means the 0xffb3 collection with report id 5; on the cable
+(373b:108b) it means the 0xffb2 collection with report id 4 - the only vendor
+collection of the wired mouse that declares an output report long enough for
+the frame. Both are confirmed on hardware: an X1 Ultimate reads its battery
+over the receiver (report 5, 0xffb3) and again over the cable (report 4,
+0xffb2, charging flag set while the cable supplies power). A mouse on its
+cable never sleeps - its own power switch does nothing there - so the wired
+reading stays live.
 """
 from __future__ import annotations
 
@@ -62,10 +69,10 @@ READ_ATTEMPTS = 4
 READ_TIMEOUT_MS = 250
 FLUSH_TIMEOUT_MS = 30
 
-# product id -> (display name, output report id, preferred usage page)
+# product id -> (display name, output report id, usage page of the collection)
 PIDS: Dict[int, Tuple[str, int, int]] = {
     0x108C: ("ATK X1 Ultimate (2.4 GHz)", 0x05, 0xFFB3),
-    0x1083: ("ATK X1 Ultimate (wired)", 0x04, 0xFFB0),
+    0x108B: ("ATK X1 Ultimate (wired)", 0x04, 0xFFB2),
 }
 
 
