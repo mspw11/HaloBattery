@@ -256,27 +256,29 @@ class AtkNearlinkTest(unittest.TestCase):
         A.AtkNearlinkProvider().poll()
         self.assertEqual([(0xFFB3, 0x0001)], bus.written())
 
-    def test_a_collection_that_cannot_take_the_frame_is_skipped(self):
-        # the ffb3 collection on some firmware says 13 bytes: Windows refuses the
-        # 64-byte write, so the next interface-1 collection that fits is used
+    def test_a_control_collection_that_cannot_take_the_frame_is_not_queried(self):
+        # the driver's table binds 108c to ffb3; when that collection declares an
+        # output report too small for the 64-byte frame, the device is not
+        # queried at all rather than the frame going to some other collection
         bus = self.one_receiver(replies=[reply(72)], answering=(0xFFB2, 0x0001),
-                                lengths={(0xFFB0, 0x0001): 13, (0xFFB1, 0x0001): 13,
-                                         (0xFFB3, 0x0001): 13})
+                                lengths={(0xFFB0, 0x0001): 64, (0xFFB1, 0x0001): 64,
+                                         (0xFFB3, 0x0001): 13, (0xFFB4, 0x0001): 64})
         provider = A.AtkNearlinkProvider()
-        found = provider.poll()
-        self.assertEqual(72, found[0].level)
-        self.assertEqual([(0xFFB2, 0x0001)], bus.written())
+        self.assertEqual([], provider.poll())
+        self.assertEqual([], bus.written())
         diag = "\n".join(provider.diagnostics())
-        self.assertIn("ffb3:0001 output=13 cannot take a 64-byte frame; skipped", diag)
-        self.assertIn("ffb2:0001", diag)
+        self.assertIn("ffb3:0001 output=13 cannot take a 64-byte frame; not queried", diag)
 
-    def test_the_request_goes_to_the_first_collection_that_fits_when_there_is_no_control_one(self):
-        shape = [(1, 0xFFB0, 0x0001), (1, 0xFFB2, 0x0001)]
-        bus = self.one_receiver(replies=[reply(48)], answering=(0xFFB2, 0x0001), shape=shape,
-                                lengths={(0xFFB0, 0x0001): 13})
-        found = A.AtkNearlinkProvider().poll()
-        self.assertEqual(48, found[0].level)
-        self.assertEqual([(0xFFB2, 0x0001)], bus.written())
+    def test_a_missing_control_collection_means_no_query(self):
+        # a receiver without the ffb3 collection is not this protocol's device:
+        # no frame is written to any other collection
+        shape = [(1, 0xFFB0, 0x0001), (1, 0xFFB2, 0x0001), (1, 0x0001, 0x0080)]
+        bus = self.one_receiver(replies=[reply(48)], shape=shape)
+        provider = A.AtkNearlinkProvider()
+        self.assertEqual([], provider.poll())
+        self.assertEqual([], bus.written())
+        self.assertIn("no ffb3:0001 collection; not queried",
+                      "\n".join(provider.diagnostics()))
 
     def test_an_unknown_output_length_never_disqualifies_a_collection(self):
         # on a system where the caps query says nothing, the usage rule still decides

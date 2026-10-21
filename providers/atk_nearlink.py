@@ -32,9 +32,9 @@ away. As in providers/pulsar.py, the last reading is then kept greyed out for
 as long as the receiver stays in the USB tree, and only a receiver that leaves
 the tree drops the device.
 
-The wired id (373b:1083) speaks the same frame on the same kind of collection
-with report id 4, per the driver's table; it is claimed here from that table
-and has not been tried on a cable yet.
+The wired id (373b:1083) is claimed from the same table with report id 4 on
+the 0xffb0 collection; it is unverified - nobody has read it on a cable yet -
+and is marked so in the device table.
 """
 from __future__ import annotations
 
@@ -57,7 +57,6 @@ POWER_INDEX = 9                       # ... reply[9] = charging flag
 CMD_INDEX = 3                         # reply[3] = commandId echo (report id is [0])
 
 CONTROL_USAGE = (0xFFB3, 0x0001)      # the collection the driver binds 108c to
-CONTROL_INTERFACE = 1
 
 READ_ATTEMPTS = 4
 READ_TIMEOUT_MS = 250
@@ -103,22 +102,23 @@ class AtkNearlinkProvider(Provider):
         self._request_code = (self._request_code + 1) % 65536 or 1
         return self._request_code
 
-    def _pick(self, infos: List[dict], report_id: int, usage_page: int) -> Optional[dict]:
-        """The collection to open: the one with the expected usage page first,
-        then any other interface-1 collection that can carry the 64-byte
-        frame. Windows refuses a write whose report id the collection does
-        not declare, so a wrong collection fails quietly instead of reading
-        a stranger's battery."""
+    def _pick(self, infos: List[dict], usage_page: int) -> Optional[dict]:
+        """The collection to open, and the only one: the vendor collection the
+        driver's device table binds this product id to. When it is missing, or
+        when it declares an output report that cannot take the 64-byte frame,
+        the device is not queried at all - writing a guessed frame to some
+        other collection is worse than showing no reading."""
         preferred = [d for d in infos
                      if (d.get("usage_page"), d.get("usage")) == (usage_page, 0x0001)]
-        rest = [d for d in infos
-                if d not in preferred and d.get("interface_number") == CONTROL_INTERFACE]
-        for d in preferred + rest:
-            if _output_length(d["path"]) in (None, WIRE_LEN):
+        if not preferred:
+            self._diag.append(f"  no {usage_page:04x}:0001 collection; not queried")
+            return None
+        for d in preferred:
+            length = _output_length(d["path"])
+            if length in (None, WIRE_LEN):
                 return d
-            self._diag.append(f"  {d.get('usage_page', 0):04x}:{d.get('usage', 0):04x} "
-                              f"output={_output_length(d['path'])} cannot take a "
-                              f"{WIRE_LEN}-byte frame; skipped")
+            self._diag.append(f"  {usage_page:04x}:0001 output={length} cannot take a "
+                              f"{WIRE_LEN}-byte frame; not queried")
         return None
 
     def _query(self, path: bytes, report_id: int) -> Optional[List[int]]:
@@ -172,7 +172,7 @@ class AtkNearlinkProvider(Provider):
                 continue
             key = f"atk_nearlink:{pid:04x}"
             present.add(key)
-            d = self._pick(mine, report_id, usage_page)
+            d = self._pick(mine, usage_page)
             if d is None:
                 continue
             self._diag.append(f"[ATK Nearlink] pid=373b:{pid:04x} '{name}' "

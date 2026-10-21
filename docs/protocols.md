@@ -375,7 +375,7 @@ Devices with no feature table at all (the older HID++ 1.0 generation) are read t
 
 ### ATK X1 Ultimate (8K Nearlink receiver)
 
-**Connection:** 2.4 GHz receiver (373b:108c, "ATK 8k Dongle Nearlink Version"); the same mouse on its cable (373b:1083) should answer the same frame with report id 4
+**Connection:** 2.4 GHz receiver (373b:108c, "ATK 8k Dongle Nearlink Version"); the same mouse on its cable (373b:1083) should answer the same frame with report id 4, unverified - no cable owner has read it yet
 
 The Nearlink receiver is new silicon with its own collection layout - five vendor collections on interface 1 (usage pages 0xffb0 to 0xffb4, report ids 4, 8, 9, 5 and 6) - and it does not answer the 17-byte command-0x04 frame of the Pulsar section above. The protocol was taken from ATK's own current web driver (ATK HUB, hub.atkgear.com, build 3.2.28), whose "Evision" mouse controller reads exactly these two product ids. The battery query is a 63-byte payload sent as output report 5 on the vendor collection with usage page 0xffb3 (64 bytes on the wire, report id first):
 
